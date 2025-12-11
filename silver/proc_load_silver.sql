@@ -61,15 +61,6 @@ FROM bronze.sales_teams t
 LEFT JOIN bronze.sales_agents_extra e
     ON t.sales_agent = e.sales_agent;
 
-ALTER TABLE silver.sales_pipeline
-ALTER COLUMN opportunity_id NVARCHAR(50);
-
-ALTER TABLE silver.sales_pipeline
-DROP COLUMN sales_cycle_days;
-
-ALTER TABLE silver.sales_pipeline
-ADD sales_cycle_days INT;
-
 TRUNCATE TABLE silver.sales_pipeline;
 INSERT INTO silver.sales_pipeline (
     opportunity_id,

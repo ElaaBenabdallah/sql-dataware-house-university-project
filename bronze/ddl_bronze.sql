@@ -32,7 +32,7 @@ IF OBJECT_ID('bronze.sales_pipeline', 'U') IS NOT NULL
     DROP TABLE bronze.sales_pipeline;
 GO
 CREATE TABLE bronze.sales_pipeline(
-    opportunity_id INT,
+    opportunity_id NVARCHAR(50),
     sales_agent    NVARCHAR(50),
     product        NVARCHAR(50),
     account        NVARCHAR(50),

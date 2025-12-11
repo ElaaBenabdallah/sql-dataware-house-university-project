@@ -89,3 +89,9 @@ SELECT
         ELSE NULL
     END AS sales_cycle_days
 FROM bronze.sales_pipeline;
+
+UPDATE silver.sales_pipeline
+SET account = 'n/a'
+WHERE account IS NULL
+  AND engage_date IS NULL
+  AND close_date IS NULL;

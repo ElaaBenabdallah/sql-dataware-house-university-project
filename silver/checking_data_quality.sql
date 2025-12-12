@@ -1,174 +1,286 @@
 ------------------------------------------------------------
--- BRONZE.SALES_PIPELINE – basic inspection & quality checks
+-- BRONZE.CAMPAIGNS – basic inspection & quality checks
+-- (dataset_fashion_store_campaigns)
 ------------------------------------------------------------
 
--- 1) Quick look at all the raw rows in the sales_pipeline table (Bronze layer)
---    Use this just to inspect the data structure and sample values.
-SELECT * 
-FROM bronze.sales_pipeline;
-
--- 2) Find rows where the close_date is earlier than the engage_date.
---    This checks for logical date errors: a deal cannot close before it was engaged.
-SELECT close_date, engage_date, opportunity_id, deal_stage
-FROM bronze.sales_pipeline 
-WHERE close_date < engage_date;
-
--- 3) List all distinct deal stages present in the data.
---    This helps you see how many categories you have and if there are typos like 'won', 'WON', 'Closed', etc.
-SELECT DISTINCT deal_stage 
-FROM bronze.sales_pipeline;
-
--- 4) Check for duplicate opportunity_id values.
---    Ideally, each opportunity_id should appear only once (1 row = 1 opportunity).
---    If cnt > 1, it means the same opportunity_id appears multiple times and you need to investigate why.
-SELECT opportunity_id, COUNT(*) AS cnt
-FROM bronze.sales_pipeline
-GROUP BY opportunity_id
-HAVING COUNT(*) > 1;
-
--- 5) Find Won/Lost deals that are missing close information.
---    Business logic check:
---      - For 'Won' or 'Lost' deals, we expect both close_date and close_value to be filled.
---    This query shows rows where:
---      - the deal is closed (Won/Lost)
---      - but close_date OR close_value is NULL (incomplete data).
+-- 1) Look at all the raw rows in the campaigns table
 SELECT *
-FROM bronze.sales_pipeline
-WHERE deal_stage IN ('Won', 'Lost')
-  AND (close_date IS NULL OR close_value IS NULL);
+FROM bronze.dataset_fashion_store_campaigns;
 
--- 6) Find open pipeline deals that already have a close date.
---    Business logic check:
---      - For 'Engaging' or 'Prospecting' deals (still open),
---        we normally expect close_date to be NULL.
---    This query shows rows where:
---      - deal_stage is still open
---      - but close_date is already filled → suspicious / inconsistent data.
-SELECT *
-FROM bronze.sales_pipeline
-WHERE deal_stage IN ('Engaging', 'Prospecting')
-  AND close_date IS NOT NULL;
-
-
-------------------------------------------------------------
--- BRONZE.SALES_TEAMS – basic inspection
-------------------------------------------------------------
-
--- 1) Look at all rows in the raw sales_teams table
---    Just to understand the structure and sample values.
-SELECT *
-FROM bronze.sales_teams;
-
--- 2) How many rows do we have in this table?
---    Good for checking that loads/imports worked as expected.
+-- 2) How many campaigns do we have?
 SELECT COUNT(*) AS row_count
-FROM bronze.sales_teams;
+FROM bronze.dataset_fashion_store_campaigns;
 
--- 3) List the distinct regional offices.
---    Helps to see all possible regions and spot typos / inconsistent labels.
-SELECT DISTINCT regional_office
-FROM bronze.sales_teams;
+-- 3) List distinct discount types (e.g. Percentage, Fixed)
+SELECT DISTINCT discount_type
+FROM bronze.dataset_fashion_store_campaigns;
 
--- 4) List the distinct managers.
---    Helps understand team structure and spot spelling differences.
-SELECT DISTINCT manager
-FROM bronze.sales_teams;
+-- 4) List distinct channels used in campaigns
+SELECT DISTINCT channel
+FROM bronze.dataset_fashion_store_campaigns;
 
--- 5) Check for duplicate sales agents.
---    Normally, we expect 1 row per sales_agent in this table.
-SELECT sales_agent, COUNT(*) AS cnt
-FROM bronze.sales_teams
-GROUP BY sales_agent
+-- 5) Check for duplicate campaign IDs
+SELECT campaign_id, COUNT(*) AS cnt
+FROM bronze.dataset_fashion_store_campaigns
+GROUP BY campaign_id
 HAVING COUNT(*) > 1;
 
--- 6) Look for missing key information (NULLs) in important columns.
---    These are potential data quality issues.
+-- 6) Check campaigns where start_date > end_date
+--    (invalid campaign period)
+SELECT campaign_id, campaign_name, start_date, end_date
+FROM bronze.dataset_fashion_store_campaigns
+WHERE start_date > end_date;
+
+-- 7) Look for NULLs in key columns
 SELECT *
-FROM bronze.sales_teams
-WHERE sales_agent IS NULL
-   OR manager IS NULL
-   OR regional_office IS NULL;
+FROM bronze.dataset_fashion_store_campaigns
+WHERE campaign_id IS NULL
+   OR channel IS NULL
+   OR start_date IS NULL
+   OR end_date IS NULL;
+
+
 
 ------------------------------------------------------------
--- BRONZE.ACCOUNTS – basic inspection & quality checks
+-- BRONZE.CHANNELS – basic inspection & quality checks
+-- (dataset_fashion_store_channels)
 ------------------------------------------------------------
 
--- 1) Look at all rows in the raw accounts table.
+-- 1) Look at all channels
 SELECT *
-FROM bronze.accounts;
+FROM bronze.dataset_fashion_store_channels;
 
--- 2) How many rows (accounts) do we have?
+-- 2) Count how many channels we have
 SELECT COUNT(*) AS row_count
-FROM bronze.accounts;
+FROM bronze.dataset_fashion_store_channels;
 
--- 3) List distinct sectors.
---    Used to see categories and detect typos (e.g. 'technolgy' vs 'technology').
-SELECT DISTINCT sector
-FROM bronze.accounts;
-
--- 4) List distinct office locations.
---    Useful to spot spelling issues (e.g. 'Philipines' vs 'Philippines').
-SELECT DISTINCT office_location
-FROM bronze.accounts;
-
--- 5) Check for duplicate accounts.
---    Normally, each account should appear only once.
-SELECT account, COUNT(*) AS cnt
-FROM bronze.accounts
-GROUP BY account
+-- 3) Check for duplicate channel names
+SELECT channel, COUNT(*) AS cnt
+FROM bronze.dataset_fashion_store_channels
+GROUP BY channel
 HAVING COUNT(*) > 1;
 
--- 6) Look for suspicious year_established values.
---    Example: before 1900 or after the current year.
+-- 4) Look for NULL or empty channel names
 SELECT *
-FROM bronze.accounts
-WHERE year_established < 1900
-   OR year_established > YEAR(GETDATE());
+FROM bronze.dataset_fashion_store_channels
+WHERE channel IS NULL
+   OR LTRIM(RTRIM(channel)) = '';
 
--- 7) Look for accounts with negative or zero revenue.
---    Usually, revenue should be positive (unless 0 is meaningful in your data).
-SELECT *
-FROM bronze.accounts
-WHERE revenue <= 0
-   OR revenue IS NULL;
 
--- 8) Look for accounts with negative or zero employees.
-SELECT *
-FROM bronze.accounts
-WHERE employees <= 0
-   OR employees IS NULL;
 
--- 9) Check accounts where subsidiary_of is missing.
---    This helps you see how many "independent" accounts you have
---    (and if you want to replace NULL with 'n/a' later).
+------------------------------------------------------------
+-- BRONZE.CUSTOMERS – basic inspection & quality checks
+-- (dataset_fashion_store_customers)
+------------------------------------------------------------
+
+-- 1) Look at raw customer rows
 SELECT *
-FROM bronze.accounts
-WHERE subsidiary_of IS NULL;
+FROM bronze.dataset_fashion_store_customers;
+
+-- 2) Count customers
+SELECT COUNT(*) AS row_count
+FROM bronze.dataset_fashion_store_customers;
+
+-- 3) Check for duplicate customer IDs
+SELECT customer_id, COUNT(*) AS cnt
+FROM bronze.dataset_fashion_store_customers
+GROUP BY customer_id
+HAVING COUNT(*) > 1;
+
+-- 4) List distinct countries
+SELECT DISTINCT country
+FROM bronze.dataset_fashion_store_customers;
+
+-- 5) List distinct age ranges
+SELECT DISTINCT age_range
+FROM bronze.dataset_fashion_store_customers;
+
+-- 6) Customers with NULL or empty key fields
+SELECT *
+FROM bronze.dataset_fashion_store_customers
+WHERE customer_id IS NULL
+   OR country IS NULL
+   OR LTRIM(RTRIM(country)) = '';
+
+-- 7) Check signup dates that are in the future (suspicious)
+SELECT *
+FROM bronze.dataset_fashion_store_customers
+WHERE signup_date > GETDATE();
+
+
 
 ------------------------------------------------------------
 -- BRONZE.PRODUCTS – basic inspection & quality checks
+-- (dataset_fashion_store_products)
 ------------------------------------------------------------
 
--- 1) Look at all rows in the raw products table.
+-- 1) Look at raw product rows
 SELECT *
-FROM bronze.products;
+FROM bronze.dataset_fashion_store_products;
 
--- 2) List distinct product names.
---    Helps check for obvious duplication or naming issues.
-SELECT DISTINCT product
-FROM bronze.products;
+-- 2) Count products
+SELECT COUNT(*) AS row_count
+FROM bronze.dataset_fashion_store_products;
 
-
--- 3) Check for duplicate products by name.
---    If you expect one row per product, duplicates could be a data issue.
-SELECT product, COUNT(*) AS cnt
-FROM bronze.products
-GROUP BY product
+-- 3) Check for duplicate product IDs
+SELECT product_id, COUNT(*) AS cnt
+FROM bronze.dataset_fashion_store_products
+GROUP BY product_id
 HAVING COUNT(*) > 1;
 
--- 4) Look for products with NULL or zero/negative sales_price.
---    Price should normally be positive and not NULL.
+-- 4) Check for duplicate product names
+SELECT product_name, COUNT(*) AS cnt
+FROM bronze.dataset_fashion_store_products
+GROUP BY product_name
+HAVING COUNT(*) > 1;
+
+-- 5) List distinct categories and genders
+SELECT DISTINCT category
+FROM bronze.dataset_fashion_store_products;
+
+SELECT DISTINCT gender
+FROM bronze.dataset_fashion_store_products;
+
+-- 6) Products with NULL or invalid prices / costs
 SELECT *
-FROM bronze.products
-WHERE sales_price IS NULL
-   OR sales_price <= 0;
+FROM bronze.dataset_fashion_store_products
+WHERE catalog_price IS NULL
+   OR cost_price    IS NULL
+   OR catalog_price <= 0
+   OR cost_price    <= 0;
+
+-- 7) Products with negative or very low margin (catalog_price < cost_price)
+SELECT *
+FROM bronze.dataset_fashion_store_products
+WHERE catalog_price < cost_price;
+
+
+
+------------------------------------------------------------
+-- BRONZE.SALES – basic inspection & quality checks
+-- (dataset_fashion_store_sales)
+------------------------------------------------------------
+
+-- 1) Look at raw sales (order header) rows
+SELECT *
+FROM bronze.dataset_fashion_store_sales;
+
+-- 2) Count sales (orders)
+SELECT COUNT(*) AS row_count
+FROM bronze.dataset_fashion_store_sales;
+
+-- 3) Check for duplicate sale IDs
+SELECT sale_id, COUNT(*) AS cnt
+FROM bronze.dataset_fashion_store_sales
+GROUP BY sale_id
+HAVING COUNT(*) > 1;
+
+-- 4) Distinct channels and countries in sales
+SELECT DISTINCT channel
+FROM bronze.dataset_fashion_store_sales;
+
+SELECT DISTINCT country
+FROM bronze.dataset_fashion_store_sales;
+
+-- 5) Sales with NULL or suspicious total_amount
+SELECT *
+FROM bronze.dataset_fashion_store_sales
+WHERE total_amount IS NULL
+   OR total_amount <= 0;
+
+-- 6) Sales with sale_date in the future
+SELECT *
+FROM bronze.dataset_fashion_store_sales
+WHERE sale_date > GETDATE();
+
+-- 7) Sales with missing customer or channel
+SELECT *
+FROM bronze.dataset_fashion_store_sales
+WHERE customer_id IS NULL
+   OR channel     IS NULL;
+
+
+
+------------------------------------------------------------
+-- BRONZE.SALESITEMS – basic inspection & quality checks
+-- (dataset_fashion_store_salesitems)
+------------------------------------------------------------
+
+-- 1) Look at raw sales item rows (order lines)
+SELECT *
+FROM bronze.dataset_fashion_store_salesitems;
+
+-- 2) Count sales items
+SELECT COUNT(*) AS row_count
+FROM bronze.dataset_fashion_store_salesitems;
+
+-- 3) Check for duplicate item IDs
+SELECT item_id, COUNT(*) AS cnt
+FROM bronze.dataset_fashion_store_salesitems
+GROUP BY item_id
+HAVING COUNT(*) > 1;
+
+-- 4) Check that quantity is positive
+SELECT *
+FROM bronze.dataset_fashion_store_salesitems
+WHERE quantity IS NULL
+   OR quantity <= 0;
+
+-- 5) Distinct channels used in salesitems
+SELECT DISTINCT channel
+FROM bronze.dataset_fashion_store_salesitems;
+
+-- 6) Check consistency between unit_price, quantity and item_total
+--    (item_total should be roughly unit_price * quantity)
+SELECT 
+    item_id,
+    sale_id,
+    product_id,
+    quantity,
+    unit_price,
+    item_total,
+    (unit_price * quantity) AS calc_item_total
+FROM bronze.dataset_fashion_store_salesitems
+WHERE item_total IS NULL
+   OR ABS(item_total - (unit_price * quantity)) > 0.01;
+
+-- 7) Check discount_percent values (e.g. text like '10.00%')
+SELECT DISTINCT discount_percent
+FROM bronze.dataset_fashion_store_salesitems;
+
+-- 8) Sales items with sale_date in the future
+SELECT *
+FROM bronze.dataset_fashion_store_salesitems
+WHERE sale_date > GETDATE();
+
+
+
+------------------------------------------------------------
+-- BRONZE.STOCK – basic inspection & quality checks
+-- (dataset_fashion_store_stock)
+------------------------------------------------------------
+
+-- 1) Look at raw stock rows
+SELECT *
+FROM bronze.dataset_fashion_store_stock;
+
+-- 2) Count stock records
+SELECT COUNT(*) AS row_count
+FROM bronze.dataset_fashion_store_stock;
+
+-- 3) Check for duplicate (country, product_id) combinations
+SELECT country, product_id, COUNT(*) AS cnt
+FROM bronze.dataset_fashion_store_stock
+GROUP BY country, product_id
+HAVING COUNT(*) > 1;
+
+-- 4) Check for negative or NULL stock quantities
+SELECT *
+FROM bronze.dataset_fashion_store_stock
+WHERE stock_quantity IS NULL
+   OR stock_quantity < 0;
+
+-- 5) List distinct countries in stock
+SELECT DISTINCT country
+FROM bronze.dataset_fashion_store_stock;
+

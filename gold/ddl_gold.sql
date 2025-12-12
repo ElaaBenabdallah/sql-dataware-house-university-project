@@ -187,7 +187,7 @@ GO
 -- 3) Load data into the fact table
 INSERT INTO gold.Fact_SalesItems (
     item_id, sale_id,
-    Date_Key, Customer_Key, Product_Key, Channel_Key, Campaign_Key,
+    Date_Key, Customer_Key, Product_Key, Channel_Key,
     quantity, original_price, unit_price, discount_applied, discount_percent, item_total,
     net_revenue, gross_margin
 )
@@ -206,9 +206,6 @@ SELECT
 
     -- Channel lookup (prefer sales.channel; fallback to salesitems.channel)
     dch.Channel_Key,
-
-    -- Campaign lookup (nullable: may not match)
-    dca.Campaign_Key,
 
     -- Measures from salesitems
     si.quantity,
@@ -238,10 +235,6 @@ LEFT JOIN gold.Dim_Products dp
 LEFT JOIN gold.Dim_Channels dch
     ON dch.channel = COALESCE(s.channel, si.channel)
 
--- Campaign match (best effort): match campaign name + channel + date in range
-LEFT JOIN gold.Dim_Campaigns dca
-    ON dca.campaign_name = si.channel_campaigns
-   AND dca.Channel_Key = dch.Channel_Key
-   AND COALESCE(s.sale_date, si.sale_date) BETWEEN dca.start_date AND dca.end_date;
 GO
+
 

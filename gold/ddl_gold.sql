@@ -143,3 +143,105 @@ SELECT
 FROM d
 OPTION (MAXRECURSION 0);
 GO
+    
+------------------------------------------------------------
+-- GOLD.FACT_SALESITEMS – build the fact table (Gold layer)
+-- Grain: 1 row per sales item (item_id) = product per order
+-- Source: silver.salesitems + silver.sales + dimension lookups
+------------------------------------------------------------
+
+-- 1) Drop the fact table if it exists (rebuild from scratch)
+IF OBJECT_ID('gold.Fact_SalesItems','U') IS NOT NULL
+    DROP TABLE gold.Fact_SalesItems;
+GO
+
+-- 2) Create the fact table structure
+CREATE TABLE gold.Fact_SalesItems (
+    SalesItem_Key     INT IDENTITY(1,1) PRIMARY KEY,
+
+    -- Business IDs (degenerate dimensions)
+    item_id           INT NULL,
+    sale_id           INT NULL,
+
+    -- Foreign keys to dimensions
+    Date_Key          INT NULL,
+    Customer_Key      INT NULL,
+    Product_Key       INT NULL,
+    Channel_Key       INT NULL,
+    Campaign_Key      INT NULL,
+
+    -- Measures
+    quantity          INT           NULL,
+    original_price    DECIMAL(18,2) NULL,
+    unit_price        DECIMAL(18,2) NULL,
+    discount_applied  DECIMAL(18,2) NULL,
+    discount_percent  DECIMAL(5,2)  NULL,
+    item_total        DECIMAL(18,2) NULL,
+
+    -- Derived measures
+    net_revenue       DECIMAL(18,2) NULL,
+    gross_margin      DECIMAL(18,2) NULL
+);
+GO
+
+-- 3) Load data into the fact table
+INSERT INTO gold.Fact_SalesItems (
+    item_id, sale_id,
+    Date_Key, Customer_Key, Product_Key, Channel_Key, Campaign_Key,
+    quantity, original_price, unit_price, discount_applied, discount_percent, item_total,
+    net_revenue, gross_margin
+)
+SELECT
+    si.item_id,
+    si.sale_id,
+
+    -- Date lookup (prefer sales.sale_date; fallback to salesitems.sale_date)
+    dd.Date_Key,
+
+    -- Customer lookup (from sales header)
+    dc.Customer_Key,
+
+    -- Product lookup (from salesitems)
+    dp.Product_Key,
+
+    -- Channel lookup (prefer sales.channel; fallback to salesitems.channel)
+    dch.Channel_Key,
+
+    -- Campaign lookup (nullable: may not match)
+    dca.Campaign_Key,
+
+    -- Measures from salesitems
+    si.quantity,
+    si.original_price,
+    si.unit_price,
+    si.discount_applied,
+    si.discount_percent,
+    si.item_total,
+
+    -- Derived measures
+    si.item_total AS net_revenue,
+    (si.item_total - (dp.cost_price * si.quantity)) AS gross_margin
+
+FROM silver.salesitems si
+LEFT JOIN silver.sales s
+    ON si.sale_id = s.sale_id
+
+LEFT JOIN gold.Dim_Date dd
+    ON dd.Full_Date = COALESCE(s.sale_date, si.sale_date)
+
+LEFT JOIN gold.Dim_Customers dc
+    ON dc.customer_id = s.customer_id
+
+LEFT JOIN gold.Dim_Products dp
+    ON dp.product_id = si.product_id
+
+LEFT JOIN gold.Dim_Channels dch
+    ON dch.channel = COALESCE(s.channel, si.channel)
+
+-- Campaign match (best effort): match campaign name + channel + date in range
+LEFT JOIN gold.Dim_Campaigns dca
+    ON dca.campaign_name = si.channel_campaigns
+   AND dca.Channel_Key = dch.Channel_Key
+   AND COALESCE(s.sale_date, si.sale_date) BETWEEN dca.start_date AND dca.end_date;
+GO
+
